@@ -1,3 +1,4 @@
+from models.client_session import ClientSession
 from threading import Lock
 from models.message import Message
 
@@ -16,18 +17,20 @@ class StateManager:
         with self.lock:
             return self.messages.copy()
 
-    def add_client(self, client_socket) -> None:
+    def add_client(self, client_session: ClientSession):
         with self.lock:
-            self.clients.append(client_socket)
+            self.clients.append(client_session)
 
-    def remove_client(self, client_socket) -> None:
+    def remove_client(self, client_socket):
         with self.lock:
-            if client_socket in self.clients:
-                self.clients.remove(client_socket)
+            self.clients = [
+                client
+                for client in self.clients
+                if client.client_socket != client_socket
+            ]
 
-    def get_clients(self) -> list:
+    def get_clients(self):
         with self.lock:
             return self.clients.copy()
-
 
 

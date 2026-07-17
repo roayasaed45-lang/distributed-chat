@@ -1,9 +1,10 @@
 import socket
 import threading
 
+from models.client_session import ClientSession
 from models.message import Message
+from protocol import decode_message, encode_message
 from services.state_manager import StateManager
-
 
 class ChatServer:
     def __init__(self, host: str, port: int):
@@ -16,9 +17,38 @@ class ChatServer:
             socket.SOCK_STREAM
         )
 
+    def broadcast_message(self, message: Message):
+        clients = self.state_manager.get_clients()
+        encoded_message = encode_message(message)
+
+        for client in clients:
+            try:
+                client.client_socket.send(encoded_message)
+
+            except OSError:
+                self.state_manager.remove_client(
+                    client.client_socket
+                )
+
+
     def handle_client(self, client_socket, address):
         print(f"New connection from {address}")
-        self.state_manager.add_client(client_socket)
+        username_data = client_socket.recv(1024)
+
+        if not username_data:
+            client_socket.close()
+            return
+
+        username = username_data.decode("utf-8")
+
+        client_session = ClientSession(
+            client_socket=client_socket,
+            username=username,
+            address=address
+        )
+
+        self.state_manager.add_client(client_session)
+
 
         try:
             while True:
@@ -27,21 +57,16 @@ class ChatServer:
                 if not data:
                     break
 
-                text = data.decode("utf-8")
-
-                message = Message(
-                    message_type="CHAT",
-                    username=str(address),
-                    content=text
-                )
+                message = decode_message(data)
 
                 self.state_manager.add_message(message)
 
-                print(f"Received message: {text}")
+                print(f"Received message: {message.content}")
                 print(
                     f"Total messages: "
                     f"{len(self.state_manager.get_messages())}"
                 )
+                self.broadcast_message(message)
 
         except ConnectionResetError:
             print(f"Connection lost: {address}")
