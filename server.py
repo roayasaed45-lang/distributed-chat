@@ -94,6 +94,7 @@ class ChatServer:
         self.zookeeper_manager.connect()
         self.leader_election.join_election()
         self.leader_election.elect_leader()
+        self.leader_election.watch_election()
         
 
         self.server_socket.setsockopt(

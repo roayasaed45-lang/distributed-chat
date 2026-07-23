@@ -36,4 +36,9 @@ class LeaderElection:
 
         return self.is_leader
 
-    
+    def watch_election(self):
+        @self.client.ChildrenWatch(self.election_path)
+        def watch(children):
+            print("Election changed")
+            self.elect_leader()
+            
