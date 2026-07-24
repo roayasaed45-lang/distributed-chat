@@ -2,12 +2,15 @@ import sys
 import socket
 import threading
 
+
 from models.client_session import ClientSession
 from models.message import Message
 from protocol import decode_message, encode_message
 from services.state_manager import StateManager
 from services.zookeeper_manager import ZooKeeperManager
 from services.leader_election import LeaderElection
+from services.replication import ReplicationService
+
 
 
 class ChatServer:
@@ -25,6 +28,12 @@ class ChatServer:
         )
 
         self.state_manager = StateManager()
+        self.replication_service = ReplicationService(
+            server_id=f"server-{port}",
+            zookeeper_manager=self.zookeeper_manager
+        )
+
+
 
         self.server_socket = socket.socket(
             socket.AF_INET,
@@ -53,7 +62,34 @@ class ChatServer:
             client_socket.close()
             return
 
-        username = username_data.decode("utf-8")
+        connection_type = username_data.decode("utf-8")
+
+        if connection_type == "__SERVER__":
+            client_socket.sendall(b"ACK")
+            replication_data = client_socket.recv(4096)
+
+            if not replication_data:
+                client_socket.close()
+                return
+
+            replication_message = decode_message(replication_data)
+
+            self.state_manager.add_message(replication_message)
+
+            print(
+                f"Replicated message received from leader: "
+                f"{replication_message.content}"
+            )
+
+            print(
+                f"Total messages: "
+                f"{len(self.state_manager.get_messages())}"
+            )
+
+            client_socket.close()
+            return
+
+        username = connection_type
 
         client_session = ClientSession(
             client_socket=client_socket,
@@ -73,6 +109,7 @@ class ChatServer:
                 message = decode_message(data)
 
                 self.state_manager.add_message(message)
+                self.replication_service.replicate_message(message)
 
                 print(f"Received message: {message.content}")
                 print(

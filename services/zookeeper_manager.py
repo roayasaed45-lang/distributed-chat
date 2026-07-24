@@ -23,6 +23,15 @@ class ZooKeeperManager:
 
         print(f"Registered server: {self.server_id}")
 
+    # הוסיפי את המתודה הזו
+    def get_live_servers(self) -> list[str]:
+        try:
+            servers = self.client.get_children("/servers")
+            return sorted(servers)
+        except Exception as error:
+            print(f"Failed to get live servers: {error}")
+            return []
+
     def close(self):
         self.client.stop()
         self.client.close()
@@ -36,4 +45,4 @@ if __name__ == "__main__":
     input("Press Enter to exit...")
 
     manager.close()
-    
+
