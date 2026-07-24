@@ -65,6 +65,45 @@ class ChatServer:
 
         connection_type = username_data.decode("utf-8")
 
+        if connection_type == "__RECOVERY__":
+            client_socket.sendall(b"ACK")
+
+            last_id_data = client_socket.recv(1024)
+
+            if not last_id_data:
+                client_socket.close()
+                return
+
+            last_message_id = int(
+                last_id_data.decode("utf-8")
+            )
+
+            missing_messages = (
+                self.state_manager.get_messages_after(
+                    last_message_id
+                )
+            )
+
+            print(
+                f"Recovery request after "
+                f"message #{last_message_id}"
+            )
+
+            print(
+                f"Sending {len(missing_messages)} "
+                f"missing messages"
+            )
+
+            for message in missing_messages:
+                encoded_message = encode_message(message)
+                client_socket.sendall(encoded_message)
+
+
+            client_socket.close()
+            return
+
+
+
         if connection_type == "__SERVER__":
             client_socket.sendall(b"ACK")
             replication_data = client_socket.recv(4096)
@@ -139,6 +178,92 @@ class ChatServer:
             client_socket.close()
             print(f"Client disconnected: {address}")
 
+    def request_recovery(self) -> None:
+        if self.leader_election.is_leader:
+            return
+
+        leader_server = self.leader_election.get_leader_server()
+
+        if leader_server is None:
+            print("No leader found for recovery")
+            return
+
+        leader_port = int(leader_server.split("-")[1])
+
+        last_message_id = (
+            self.state_manager.get_last_message_id()
+        )
+
+        try:
+            with socket.socket(
+                    socket.AF_INET,
+                    socket.SOCK_STREAM
+            ) as recovery_socket:
+
+                recovery_socket.connect(
+                    ("127.0.0.1", leader_port)
+                )
+
+                recovery_socket.sendall(b"__RECOVERY__")
+
+                acknowledgement = recovery_socket.recv(1024)
+
+                if acknowledgement != b"ACK":
+                    print("Recovery request was not acknowledged")
+                    return
+
+                recovery_socket.sendall(
+                    str(last_message_id).encode("utf-8")
+                )
+
+                received_data = b""
+
+                while True:
+                    data = recovery_socket.recv(4096)
+
+                    if not data:
+                        break
+
+                    received_data += data
+
+                recovered_count = 0
+
+                for message_data in received_data.splitlines():
+                    if not message_data:
+                        continue
+
+                    recovered_message = decode_message(
+                        message_data
+                    )
+
+                    self.state_manager.add_message(
+                        recovered_message
+                    )
+
+                    recovered_count += 1
+
+                last_recovered_id = (
+                    self.state_manager.get_last_message_id()
+                )
+
+                self.next_message_id = (
+                        last_recovered_id + 1
+                )
+
+                print(
+                    f"Recovery completed: "
+                    f"{recovered_count} messages received"
+                )
+
+            print(
+                f"Recovery requested from {leader_server} "
+                f"after message #{last_message_id}"
+            )
+
+        except OSError as error:
+            print(f"Recovery request failed: {error}")
+            
+
     def start(self):
         self.zookeeper_manager.connect()
         self.leader_election.join_election()
@@ -156,6 +281,7 @@ class ChatServer:
         self.server_socket.listen(5)
 
         print(f"Server started on {self.host}:{self.port}")
+        self.request_recovery()
 
         while True:
             client_socket, address = self.server_socket.accept()

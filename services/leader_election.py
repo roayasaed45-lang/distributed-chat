@@ -36,9 +36,25 @@ class LeaderElection:
 
         return self.is_leader
 
+    def get_leader_server(self) -> str | None:
+        children = self.client.get_children(self.election_path)
+
+        if not children:
+            return None
+
+        children.sort()
+
+        leader_node = children[0]
+
+        leader_path = f"{self.election_path}/{leader_node}"
+
+        leader_server, _ = self.client.get(leader_path)
+
+        return leader_server.decode("utf-8")
+
+
     def watch_election(self):
         @self.client.ChildrenWatch(self.election_path)
         def watch(children):
             print("Election changed")
             self.elect_leader()
-            

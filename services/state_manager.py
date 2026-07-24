@@ -17,6 +17,33 @@ class StateManager:
         with self.lock:
             return self.messages.copy()
 
+    def get_messages_after(self, message_id: int) -> list[Message]:
+        with self.lock:
+            return [
+                message
+                for message in self.messages
+                if message.message_id is not None
+                   and message.message_id > message_id
+            ]
+
+    def get_last_message_id(self) -> int:
+        with self.lock:
+            if not self.messages:
+                return 0
+
+            message_ids = [
+                message.message_id
+                for message in self.messages
+                if message.message_id is not None
+            ]
+
+            if not message_ids:
+                return 0
+
+            return max(message_ids)
+
+
+
     def add_client(self, client_session: ClientSession):
         with self.lock:
             self.clients.append(client_session)

@@ -8,7 +8,8 @@ def encode_message(message: Message) -> bytes:
     """
     message_dict = message.to_dict()
     message_json = json.dumps(message_dict)
-    return message_json.encode("utf-8")
+    return (message_json + "\n").encode("utf-8")
+
 
 
 def decode_message(data: bytes) -> Message:
