@@ -28,6 +28,7 @@ class ChatServer:
         )
 
         self.state_manager = StateManager()
+        self.next_message_id = 1
         self.replication_service = ReplicationService(
             server_id=f"server-{port}",
             zookeeper_manager=self.zookeeper_manager
@@ -77,9 +78,12 @@ class ChatServer:
             self.state_manager.add_message(replication_message)
 
             print(
-                f"Replicated message received from leader: "
+                f"Replicated message "
+                f"#{replication_message.message_id} "
+                f"received from leader: "
                 f"{replication_message.content}"
             )
+
 
             print(
                 f"Total messages: "
@@ -108,14 +112,22 @@ class ChatServer:
 
                 message = decode_message(data)
 
+                message.message_id = self.next_message_id
+                self.next_message_id += 1
+
                 self.state_manager.add_message(message)
                 self.replication_service.replicate_message(message)
 
-                print(f"Received message: {message.content}")
+                print(
+                    f"Received message #{message.message_id}: "
+                    f"{message.content}"
+                )
+
                 print(
                     f"Total messages: "
                     f"{len(self.state_manager.get_messages())}"
                 )
+
 
                 self.broadcast_message(message)
 
