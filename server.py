@@ -115,6 +115,11 @@ class ChatServer:
             replication_message = decode_message(replication_data)
 
             self.state_manager.add_message(replication_message)
+            self.next_message_id = max(
+                self.next_message_id,
+                replication_message.message_id + 1
+            )
+            
 
             print(
                 f"Replicated message "
@@ -141,6 +146,8 @@ class ChatServer:
         )
 
         self.state_manager.add_client(client_session)
+        client_socket.sendall(b"ACK")
+
 
         try:
             while True:
