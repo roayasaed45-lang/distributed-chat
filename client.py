@@ -98,6 +98,11 @@ class ChatClient:
         try:
             while True:
                 message = input("Enter message: ")
+                if message.strip().lower() in ("/quit", "quit", "exit"):
+                    print("Disconnecting from chat...")
+                    self.client_socket.close()
+                    break
+
 
                 if message.lower() == "exit":
                     break
